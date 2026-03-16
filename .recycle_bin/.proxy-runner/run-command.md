@@ -1,0 +1,1 @@
+"C:\Program Files\CocCoc\Browser\Application\browser.exe" --remote-debugging-port=9223 --user-data-dir="C:\Users\MT Dũng\AppData\Local\CocCoc\Browser\User Data" --profile-directory="Default"
