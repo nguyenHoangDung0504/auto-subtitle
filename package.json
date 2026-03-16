@@ -4,5 +4,8 @@
   "dependencies": {
     "puppeteer": "^24.37.5"
   },
-  "type": "module"
+  "type": "module",
+  "bin": {
+    "autosub": "./index.js"
+  }
 }
