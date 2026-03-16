@@ -12,13 +12,16 @@ const args = process.argv.slice(2)
 function showHelp() {
 	console.log(`
 Usage:
-  node index.mjs -g -path <dir1> [dir2] ...   Generate subtitles
-  node index.mjs -c -path <dir1> [dir2] ...   Cleanup media files
-  node index.mjs -h                           Show this help
+  node index.mjs -g [-t <dir1> [dir2] ...]   Generate subtitles
+  node index.mjs -c [-t <dir1> [dir2] ...]   Cleanup media files
+  node index.mjs -h                          Show this help
+
+  If -t is omitted, defaults to current directory.
 
 Examples:
-  node index.mjs -g -path ./media ./media2 # Relative path
-  node index.mjs -c -path ./media /absolute/path/media2 # Absolute path
+  autosub -g                          # current directory
+  autosub -g -t ./media ./media2
+  autosub -c -t ./media /absolute/path/media2
 `)
 }
 
@@ -35,13 +38,7 @@ if (mode !== '-g' && mode !== '-c') {
 }
 
 const pathIndex = args.indexOf('-t')
-if (pathIndex === -1 || pathIndex === args.length - 1) {
-	console.error('Missing -t argument (target).')
-	showHelp()
-	process.exit(1)
-}
-
-const paths = args.slice(pathIndex + 1)
+const paths = pathIndex !== -1 ? args.slice(pathIndex + 1) : [process.cwd()]
 
 const script = mode === '-g' ? 'generate.mjs' : 'cleanup.mjs'
 const scriptPath = path.resolve(__dirname, './src', script)
