@@ -17,7 +17,7 @@ Example:
 	process.exit(1)
 }
 
-const CONCURRENCY = 2
+const CONCURRENCY = 3
 
 /**
  * Supported media extensions (audio + video).
