@@ -60,7 +60,9 @@ export async function waitForUploadTaskID(page, logger, idleTimeout = 5 * 60 * 1
 		domPollInterval = setInterval(async () => {
 			try {
 				const hasError = await page.evaluate(() => {
-					const buttons = [...document.querySelectorAll('div[data-v-app] button')].map((el) => el.textContent.trim())
+					const buttons = [...document.querySelectorAll('div[data-v-app] button')].map((el) =>
+						el.textContent.trim(),
+					)
 					return buttons.join(',') === ',Cancel,Retry'
 				})
 				if (hasError) {
@@ -97,7 +99,7 @@ export async function waitForUploadDone(page, taskId, logger, timeout = 20 * 60 
 			if (!r.url().endsWith(`/subtitles/language/recognition/${taskId}`)) return false
 			try {
 				const json = await r.json()
-				const progress = json?.data?.progress
+				const progress = Number(json?.data?.progress)
 				return progress === 100
 			} catch {
 				return false

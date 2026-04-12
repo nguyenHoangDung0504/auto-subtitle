@@ -6,7 +6,12 @@ import puppeteer from 'puppeteer'
 
 import { createLogger } from './logger.mjs'
 import { getResult, triggerGenerate } from './evals.mjs'
-import { waitForGenerateTaskID, waitForSubtitles, waitForUploadDone, waitForUploadTaskID } from './net-await.mjs'
+import {
+	waitForGenerateTaskID,
+	waitForSubtitles,
+	waitForUploadDone,
+	waitForUploadTaskID,
+} from './net-await.mjs'
 import { blockTrackingScript } from './net-block.mjs'
 
 /** @type {import('puppeteer').Browser | null} */
@@ -111,6 +116,7 @@ export async function processAudio(audioFile) {
 
 			logger.log('SUCCESS')
 			logger.close()
+			console.log('SUCCESS:', outDir + '/' + baseName)
 			return
 		} catch (err) {
 			logger.log(`ERROR: ${err instanceof Error ? err.message : String(err)}`)
@@ -118,6 +124,7 @@ export async function processAudio(audioFile) {
 			if (attempt === 2) {
 				logger.log('FAILED after retry')
 				logger.close()
+				console.log('FAILED:', outDir + '/' + baseName)
 			}
 		} finally {
 			if (context) await context.close()

@@ -17,8 +17,6 @@ Example:
 	process.exit(1)
 }
 
-const CONCURRENCY = 3
-
 /**
  * Supported media extensions (audio + video).
  * @type {Set<string>}
@@ -60,12 +58,13 @@ if (!mediaFiles.length) {
 	process.exit(0)
 }
 console.log(`Found ${mediaFiles.length} media files total.`)
-
 const queue = [...mediaFiles]
 
-await Promise.all(Array.from({ length: CONCURRENCY }, (_, i) => worker(i + 1)))
-console.log('All done.')
-process.exit(0)
+const CONCURRENCY = 3
+Promise.all(Array.from({ length: CONCURRENCY }, (_, i) => worker(i + 1))).then(() => {
+	console.log('All done.')
+	process.exit(0)
+})
 
 /**
  * @param {number} id
