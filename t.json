@@ -1,0 +1,9 @@
+{
+    "status": 200,
+    "message": "success",
+    "data": {
+        "objects": {
+            "3.mp3": "98c/98c601c9-0826-4bd3-ad25-f4e74d14ec35.mp3"
+        }
+    }
+}

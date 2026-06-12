@@ -40,7 +40,7 @@ export async function triggerGenerate(page) {
 /**
  * @param {Page} page
  */
-export async function getResult(page) {
+export async function getResult(page = { url: () => window.location.href }) {
 	const taskID = new URL(page.url()).searchParams.get('task-id')
 	const res = await fetch(
 		`https://gw.aoscdn.com/app/reccloud/v2/open/ai/av/subtitles/recognition/v2/${taskID}`,

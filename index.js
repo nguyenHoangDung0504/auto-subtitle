@@ -41,6 +41,6 @@ const pathIndex = args.indexOf('-t')
 const paths = pathIndex !== -1 ? args.slice(pathIndex + 1) : [process.cwd()]
 
 const script = mode === '-g' ? 'generate.mjs' : 'cleanup.mjs'
-const scriptPath = path.resolve(__dirname, './src', script)
+const scriptPath = path.resolve(__dirname, './src/v2', script)
 
 execFileSync(process.execPath, [scriptPath, ...paths], { stdio: 'inherit' })

@@ -2,17 +2,12 @@
 
 import path from 'path'
 import fs from 'fs'
-import puppeteer, { Page } from 'puppeteer'
+import puppeteer from 'puppeteer'
 
 import { createLogger } from './logger.mjs'
 import { getResult, triggerGenerate } from './evals.mjs'
-import {
-	waitForGenerateTaskID,
-	waitForSubtitles,
-	waitForUploadDone,
-	waitForUploadTaskID,
-} from './net-await.mjs'
-import { blockTrackingScript } from './net-block.mjs'
+import { waitForTranslationTaskID, waitForTranslationDone } from './net-await.mjs'
+import { blockTrackingScript } from '../net-block.mjs'
 
 /** @type {import('puppeteer').Browser | null} */
 let sharedBrowser = null
@@ -21,31 +16,19 @@ let sharedBrowser = null
 let browserLaunchPromise = null
 
 async function getBrowser() {
-	// Nếu browser đã sống → dùng luôn
 	if (sharedBrowser?.connected) return sharedBrowser
 
-	// Nếu đang launch → chờ promise đó thay vì launch thêm
 	if (browserLaunchPromise) return browserLaunchPromise
 
-	// Chưa ai launch → ta launch, lưu promise để các caller khác chờ chung
 	browserLaunchPromise = puppeteer
 		.launch({
 			headless: false,
 			defaultViewport: { width: 0, height: 0 },
-			args: [
-				// '--disable-setuid-sandbox',
-				// '--disable-dev-shm-usage',
-				// '--disable-extensions',
-				// '--disable-background-networking',
-				// '--disable-background-timer-throttling',
-				// '--disable-renderer-backgrounding',
-				// '--disable-gpu',
-			],
+			args: [],
 		})
 		.then((browser) => {
 			sharedBrowser = browser
 
-			// Nếu browser crash/đóng → reset để lần sau có thể launch lại
 			browser.on('disconnected', () => {
 				sharedBrowser = null
 				browserLaunchPromise = null
@@ -54,7 +37,6 @@ async function getBrowser() {
 			return browser
 		})
 		.catch((err) => {
-			// Launch thất bại → reset để cho phép thử lại
 			browserLaunchPromise = null
 			throw err
 		})
@@ -89,28 +71,25 @@ export async function processAudio(audioFile) {
 			const page = await context.newPage()
 
 			await blockTrackingScript(page)
-			await page.goto('https://reccloud.com/ai-subtitle?v=product', { waitUntil: 'load' })
+			await page.goto('https://reccloud.com/auto-subtitle-translator?v=product', { waitUntil: 'load' })
 
 			const [fileChooser] = await Promise.all([
 				page.waitForFileChooser(),
-				// @ts-expect-error: Element type too large
-				page.$eval('astro-island .gradient-button-auto-theme', (el) => el.click()),
-				// Note: Selector changed (17-4-2026)
-				// page.$eval('[data-v-f9a0b884].gradient-button-auto-theme', (el) => el.click()),
+				page.$eval('div.gradient-button-auto-theme.flex-center.relative.z-10', (el) => el.click()),
 			])
 
 			await fileChooser.accept([audioFile])
 			logger.log('File selected')
 
-			const uploadTaskID = await waitForUploadTaskID(page, logger)
-			await waitForUploadDone(page, uploadTaskID, logger)
+			// Bắt task_id trước, triggerGenerate sau để tránh miss response
+			const taskIdPromise = waitForTranslationTaskID(page)
 
 			await triggerGenerate(page)
 
-			const genTaskID = await waitForGenerateTaskID(page)
-			await waitForSubtitles(page, genTaskID, logger)
+			const translationTaskID = await taskIdPromise
+			await waitForTranslationDone(page, translationTaskID, logger)
 
-			const { origin, translation } = await getResult(page)
+			const { origin, translation } = await getResult(page, translationTaskID)
 
 			fs.mkdirSync(outDir, { recursive: true })
 			fs.writeFileSync(output2, origin, 'utf-8')
