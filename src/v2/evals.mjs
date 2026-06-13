@@ -8,11 +8,11 @@
 export async function triggerGenerate(page) {
 	// Đợi URL đổi sang ?v=startSelectFile
 	await page.waitForFunction(() => new URLSearchParams(location.search).get('v') === 'startSelectFile', {
-		timeout: 30000,
+		timeout: 60000,
 	})
 
 	// Đợi network idle để SPA render xong
-	await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 })
+	await page.waitForNetworkIdle({ idleTime: 500, timeout: 60000 })
 
 	await page.evaluate(async () => {
 		const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -22,14 +22,14 @@ export async function triggerGenerate(page) {
 
 		const visibleChild = [...ctn.childNodes[0].childNodes].filter((node) => !node.classList?.contains('hidden'))[0]
 		visibleChild.childNodes[4].childNodes[0].childNodes[1].click()
-		await sleep(800)
+		await sleep(3000)
 
 		const target = [...document.querySelectorAll('.el-scrollbar')[3].querySelectorAll('li')].find((node) =>
 			node.textContent.includes('Vietnam'),
 		)
 		if (!target) throw new Error('Không tìm thấy option Vietnamese')
 		;['mousedown', 'mouseup', 'click'].forEach((e) => target.dispatchEvent(new MouseEvent(e, { bubbles: true })))
-		await sleep(300)
+		await sleep(1000)
 
 		ctn.childNodes[2].querySelector('button').click()
 	})

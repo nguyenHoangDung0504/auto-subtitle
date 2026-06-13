@@ -22,9 +22,17 @@ async function getBrowser() {
 
 	browserLaunchPromise = puppeteer
 		.launch({
-			headless: false,
+			// headless: false,
 			defaultViewport: { width: 0, height: 0 },
-			args: [],
+			args: [
+				'--disable-setuid-sandbox',
+				'--disable-dev-shm-usage',
+				'--disable-extensions',
+				'--disable-background-networking',
+				'--disable-background-timer-throttling',
+				'--disable-renderer-backgrounding',
+				'--disable-gpu',
+			],
 		})
 		.then((browser) => {
 			sharedBrowser = browser

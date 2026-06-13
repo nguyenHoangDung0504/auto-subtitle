@@ -82,6 +82,7 @@ export async function waitForTranslationDone(page, taskId, logger, idleTimeout =
 				}
 			} catch {
 				// ignore parse error
+				logger.log(`WARN onResponse parse error: ${err?.message}`)
 			}
 		}
 

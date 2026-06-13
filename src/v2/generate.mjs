@@ -60,7 +60,7 @@ if (!mediaFiles.length) {
 console.log(`Found ${mediaFiles.length} media files total.`)
 const queue = [...mediaFiles]
 
-const CONCURRENCY = 1
+const CONCURRENCY = 3
 Promise.all(Array.from({ length: CONCURRENCY }, (_, i) => worker(i + 1))).then(() => {
 	console.log('All done.')
 	process.exit(0)
