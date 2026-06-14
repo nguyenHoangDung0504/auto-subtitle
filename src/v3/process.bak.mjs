@@ -11,7 +11,7 @@ import { blockTrackingScript } from '../net-block.mjs'
 import { getAudioDuration, cutAudio, getChunkPaths, loadState, saveState, getLastCueEnd, mergeVTT } from './chunk.mjs'
 import { monitorRegister, monitorUpdate } from './monitor.mjs'
 
-const TWENTY_MINUTES = 20 * 60
+const TWENTY_MINUTES = 20 * 60 // seconds
 
 /** @type {import('puppeteer').Browser | null} */
 let sharedBrowser = null
@@ -54,6 +54,8 @@ async function getBrowser() {
 }
 
 /**
+ * Upload một audio file lên reccloud và lấy kết quả VTT.
+ *
  * @param {string} audioFile
  * @param {number} offset seconds
  * @param {import('./logger.mjs').Logger} logger
@@ -104,6 +106,8 @@ async function uploadAndGetVTT(audioFile, offset, logger) {
 }
 
 /**
+ * Process one audio file, tự động chunk nếu > 20 phút.
+ *
  * @param {string} audioFile Absolute path
  * @returns {Promise<void>}
  */
@@ -113,61 +117,62 @@ export async function processAudio(audioFile) {
 	const outputTxt = path.join(outDir, `${baseName}.txt`)
 	const outputRaw = path.join(outDir, `${baseName}.raw.txt`)
 
+	// Đã xong hoàn toàn
 	if (fs.existsSync(outputTxt) && fs.existsSync(outputRaw)) return
 
 	const logger = createLogger(audioFile)
-	monitorRegister(audioFile, logger.logFile)
 
 	try {
 		const duration = getAudioDuration(audioFile)
 		logger.log(`Duration: ${duration.toFixed(1)}s`)
 
-		// File ngắn
+		// File ngắn: flow cũ, không cần chunking
 		if (duration < TWENTY_MINUTES) {
 			logger.log('Short file, processing directly')
-			monitorUpdate(audioFile, { status: '⏳ uploading', part: 1, totalParts: 1 })
-
 			const { origin, translation } = await uploadAndGetVTT(audioFile, 0, logger)
-
 			fs.mkdirSync(outDir, { recursive: true })
 			fs.writeFileSync(outputRaw, origin, 'utf-8')
 			fs.writeFileSync(outputTxt, translation, 'utf-8')
-
-			monitorUpdate(audioFile, { status: '✅ done', part: null, totalParts: null })
 			logger.log('SUCCESS')
 			logger.close()
-			console.log('SUCCESS:', outputTxt)
 			return
 		}
 
-		// File dài: chunking
+		// File dài: chunking flow
 		logger.log('Long file, chunking mode')
 		const { stateFile, chunkDir, vttChunkDir } = getChunkPaths(audioFile)
 
 		/** @type {import('./chunk.mjs').ChunkState} */
-		let state = loadState(stateFile) ?? { parts: [], merged: false }
+		let state = loadState(stateFile) ?? {
+			parts: [],
+			merged: false,
+		}
 
 		if (state.merged) {
+			// State nói đã merge nhưng output không có → state bị corrupt
 			logger.log('State says merged but output missing, resetting merge flag')
 			state.merged = false
 			saveState(stateFile, state)
 		}
 
+		// Resume: xác định part tiếp theo cần xử lý
+		// Part đầu tiên luôn là file gốc, offset = 0
 		if (state.parts.length === 0) {
-			state.parts.push({ index: 1, sourceAudio: audioFile, offset: 0, vttReady: false })
+			state.parts.push({
+				index: 1,
+				sourceAudio: audioFile,
+				offset: 0,
+				vttReady: false,
+			})
 			saveState(stateFile, state)
 		}
 
+		// Loop xử lý từng part
 		while (true) {
 			const currentPart = state.parts[state.parts.length - 1]
 
+			// VTT của part này chưa có → upload và lấy
 			if (!currentPart.vttReady) {
-				monitorUpdate(audioFile, {
-					status: '⏳ uploading',
-					part: currentPart.index,
-					totalParts: state.parts.length,
-				})
-
 				const partVttTxt = path.join(vttChunkDir, `part${currentPart.index}.txt`)
 				const partVttRaw = path.join(vttChunkDir, `part${currentPart.index}.raw.txt`)
 
@@ -183,24 +188,31 @@ export async function processAudio(audioFile) {
 
 				currentPart.vttReady = true
 				saveState(stateFile, state)
+
 				logger.log(`Part ${currentPart.index} VTT ready`)
 			}
 
+			// Đọc VTT để lấy cutAt
 			const partVttRaw = path.join(vttChunkDir, `part${currentPart.index}.raw.txt`)
 			const vttContent = fs.readFileSync(partVttRaw, 'utf-8')
-			const lastCueEnd = getLastCueEnd(vttContent)
-			const cutAt = currentPart.offset + lastCueEnd
-			const remaining = duration - cutAt
+			const lastCueEnd = getLastCueEnd(vttContent) // seconds, relative to chunk start
 
+			// cutAt tính theo absolute time (offset + lastCueEnd)
+			const cutAt = currentPart.offset + lastCueEnd
+
+			// Kiểm tra còn audio sau cutAt không
+			const remaining = duration - cutAt
 			logger.log(
 				`Part ${currentPart.index} cutAt: ${cutAt.toFixed(1)}s, remaining: ${Math.max(0, remaining).toFixed(1)}s`,
 			)
 
 			if (remaining <= 1) {
+				// Không còn gì sau cutAt → đây là part cuối
 				logger.log('No remaining audio, proceeding to merge')
 				break
 			}
 
+			// Còn audio → cắt chunk tiếp
 			const nextIndex = currentPart.index + 1
 			const nextAudio = path.join(chunkDir, `part${nextIndex}${path.extname(audioFile)}`)
 
@@ -212,28 +224,34 @@ export async function processAudio(audioFile) {
 			const nextDuration = getAudioDuration(nextAudio)
 			logger.log(`Part ${nextIndex} duration: ${nextDuration.toFixed(1)}s`)
 
+			// Thêm part mới vào state nếu chưa có
 			const alreadyExists = state.parts.find((p) => p.index === nextIndex)
 			if (!alreadyExists) {
-				state.parts.push({ index: nextIndex, sourceAudio: nextAudio, offset: cutAt, vttReady: false })
+				state.parts.push({
+					index: nextIndex,
+					sourceAudio: nextAudio,
+					offset: cutAt,
+					vttReady: false,
+				})
 				saveState(stateFile, state)
 			}
 
-			monitorUpdate(audioFile, {
-				status: '⏳ cutting',
-				part: currentPart.index,
-				totalParts: state.parts.length,
-			})
+			// Nếu chunk tiếp theo < 20p → nó sẽ là part cuối, loop tiếp để xử lý
+			// Nếu >= 20p → reccloud sẽ tự giới hạn lại, loop tiếp xử lý bình thường
 		}
 
+		// Tất cả parts đã có VTT → merge
 		logger.log(`Merging ${state.parts.length} parts`)
-		monitorUpdate(audioFile, { status: '⏳ merging', part: null, totalParts: null })
 
+		// Đọc tất cả VTT theo thứ tự, dùng raw (origin) để merge riêng, translation để merge riêng
 		const originParts = []
 		const translationParts = []
 
 		for (const part of state.parts) {
 			const partVttRaw = path.join(vttChunkDir, `part${part.index}.raw.txt`)
 			const partVttTxt = path.join(vttChunkDir, `part${part.index}.txt`)
+			// VTT đã được offset sẵn khi ghi (getResult nhận offset)
+			// Nên khi merge chỉ cần ghép cues, không cần offset lại
 			originParts.push({ content: fs.readFileSync(partVttRaw, 'utf-8'), offset: 0 })
 			translationParts.push({ content: fs.readFileSync(partVttTxt, 'utf-8'), offset: 0 })
 		}
@@ -248,12 +266,10 @@ export async function processAudio(audioFile) {
 		state.merged = true
 		saveState(stateFile, state)
 
-		monitorUpdate(audioFile, { status: '✅ done', part: null, totalParts: null })
 		logger.log('SUCCESS')
 		logger.close()
 		console.log('SUCCESS:', outputTxt)
 	} catch (err) {
-		monitorUpdate(audioFile, { status: '❌ failed' })
 		logger.log(`FAILED: ${err instanceof Error ? err.stack : String(err)}`)
 		logger.close()
 		console.log('FAILED:', audioFile)
