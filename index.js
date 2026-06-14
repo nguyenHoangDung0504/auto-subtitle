@@ -5,8 +5,9 @@ import { execFileSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+const CURRENT_VER = 3
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
+const getVersion = () => ({ 1: '', 2: 'v2', 3: 'v3' })[CURRENT_VER]
 const args = process.argv.slice(2)
 
 function showHelp() {
@@ -41,6 +42,6 @@ const pathIndex = args.indexOf('-t')
 const paths = pathIndex !== -1 ? args.slice(pathIndex + 1) : [process.cwd()]
 
 const script = mode === '-g' ? 'generate.mjs' : 'cleanup.mjs'
-const scriptPath = path.resolve(__dirname, './src/v2', script)
+const scriptPath = path.resolve(__dirname, `./src/${getVersion()}`, script)
 
 execFileSync(process.execPath, [scriptPath, ...paths], { stdio: 'inherit' })
